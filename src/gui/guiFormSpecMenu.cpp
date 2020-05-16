@@ -1039,6 +1039,70 @@ void GUIFormSpecMenu::parseButton(parserData* data, const std::string &element,
 	errorstream<< "Invalid button element(" << parts.size() << "): '" << element << "'"  << std::endl;
 }
 
+void GUIFormSpecMenu::parseContainerButton(parserData* data, const std::string &element,
+		const std::string &type)
+{
+	std::vector<std::string> parts = split(element,';');
+
+	if ((parts.size() == 3) ||
+		((parts.size() > 3) && (m_formspec_version > FORMSPEC_API_VERSION)))
+	{
+		std::vector<std::string> v_pos = split(parts[0],',');
+		std::vector<std::string> v_geom = split(parts[1],',');
+		std::string name = parts[2];
+
+		MY_CHECKPOS(type, 0);
+		MY_CHECKGEOM(type, 1);
+
+		v2s32 pos;
+		v2s32 geom;
+		core::rect<s32> rect;
+
+		if (data->real_coordinates) {
+			pos = getRealCoordinateBasePos(v_pos);
+			geom = getRealCoordinateGeometry(v_geom);
+			rect = core::rect<s32>(pos.X, pos.Y, pos.X+geom.X,
+				pos.Y+geom.Y);
+		} else {
+			pos = getElementBasePos(&v_pos);
+			geom.X = (stof(v_geom[0]) * spacing.X) - (spacing.X - imgsize.X);
+			pos.Y += (stof(v_geom[1]) * (float)imgsize.Y)/2;
+
+			rect = core::rect<s32>(pos.X, pos.Y - m_btn_height,
+						pos.X + geom.X, pos.Y + m_btn_height);
+		}
+
+		if(!data->explicit_size)
+			warningstream<<"invalid use of container_button without a size[] element"<<std::endl;
+
+		FieldSpec spec(
+			name,
+			L"",
+			L"",
+			258 + m_fields.size()
+		);
+		spec.ftype = f_Button;
+		if(type == "container_button_exit")
+			spec.is_exit = true;
+
+		GUIButtonContainer *e = GUIButtonContainer::addButton(Environment, rect,
+                m_tsrc, data->current_parent, spec.fid);
+
+        // TODO: Need to track scope, add children, etc
+
+		auto style = getStyleForElement("container_button", name);
+		e->setStyles(style);
+
+		if (spec.fname == data->focused_fieldname) {
+			Environment->setFocus(e);
+		}
+
+		m_fields.push_back(spec);
+		return;
+	}
+	errorstream<< "Invalid " << type << " element(" << parts.size() << "): '" << element << "'"  << std::endl;
+}
+
 void GUIFormSpecMenu::parseBackground(parserData* data, const std::string &element)
 {
 	std::vector<std::string> parts = split(element,';');
@@ -2722,6 +2786,11 @@ void GUIFormSpecMenu::parseElement(parserData* data, const std::string &element)
 
 	if (type == "button" || type == "button_exit") {
 		parseButton(data, description, type);
+		return;
+	}
+
+	if (type == "container_button" || type == "container_button_exit") {
+		parseContainerButton(data, description, type);
 		return;
 	}
 
